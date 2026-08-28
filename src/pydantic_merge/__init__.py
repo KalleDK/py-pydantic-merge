@@ -10,7 +10,7 @@ from typing import Any, Self, dataclass_transform
 
 import pydantic
 
-__version__ = "0.1.0.1"
+__version__ = "0.1.1"
 
 
 class PydanticMergeError(Exception):
