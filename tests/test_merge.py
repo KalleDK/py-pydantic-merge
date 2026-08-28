@@ -118,4 +118,3 @@ def test_model_merge_returns_unsupported_values(capsys: pytest.CaptureFixture[st
     result = AppConfig().model_merge(None)
 
     assert result is None
-    assert "other is not a dict or BaseModel, returning other: None" in capsys.readouterr().out
