@@ -46,6 +46,35 @@ pythonVersion = "3.13"
 line-length = 120
 target-version = "py313"
 
+[tool.ruff.lint]
+extend-select = [
+    "E4",    # Import and indentation errors
+    "E7",    # Statement errors
+    "E9",    # Runtime and syntax errors
+    "F",     # Pyflakes correctness checks
+    "I",     # Import sorting
+    "UP",    # Python syntax and API upgrades
+    "B",     # Common bug patterns
+    "SIM",   # Simplifiable code
+    "RUF",   # Ruff-specific improvements
+    "T20",   # See if print or pprint is used in code
+    "RET",   # Return statements
+    "S",     # Security issues
+    "ANN",   # Type annotation issues
+    "TC",    # Type checking issues
+    "FA",    # Future annotations issues
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+"examples/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+
 [tool.pytest.ini_options]
 addopts = "-v --cov=pydantic_merge --cov-report=term-missing --cov-report=xml"
 testpaths = ["tests"]

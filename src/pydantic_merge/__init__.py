@@ -6,6 +6,8 @@ Nested models are merged recursively; scalar, list, and dictionary values are
 replaced by override values.
 """
 
+from __future__ import annotations
+
 from typing import Any, Self, dataclass_transform
 
 import pydantic
@@ -41,10 +43,11 @@ def make_default_dict(model: type[pydantic.BaseModel] | pydantic.BaseModel) -> d
 
     dct: dict[str, tuple[bool, Any]] = {}
     for name, field in model.model_fields.items():
-        if field.default_factory is not None:
-            default = field.default_factory()  # pyright: ignore[reportCallIssue]
-        else:
-            default = field.default
+        default = (
+            field.default_factory()  # pyright: ignore[reportCallIssue]
+            if field.default_factory is not None
+            else field.default
+        )
 
         if isinstance(default, pydantic.BaseModel):
             dct[name] = (True, default)
@@ -126,7 +129,7 @@ class MergeableExtension:
 
     @pydantic.model_validator(mode="before")
     @classmethod
-    def _validate_base(cls, v: Any) -> Any:
+    def _validate_base(cls, v: Any) -> Any:  # noqa: ANN401
         """Merge input with nested model defaults before Pydantic validates it."""
 
         if not issubclass(cls, pydantic.BaseModel):
@@ -136,7 +139,7 @@ class MergeableExtension:
 
         return merge_dct(cls, v)
 
-    def model_merge(self, other: Self | dict[str, Any] | Any) -> Any:
+    def model_merge(self, other: Self | dict[str, Any] | Any) -> Any:  # noqa: ANN401
         """Return a validated copy with values from ``other`` merged into it.
 
         ``other`` may be a dictionary or another Pydantic model. Unsupported
@@ -151,9 +154,7 @@ class MergeableExtension:
             # other is not a dict or BaseModel, returning other
             return other
 
-        obj = self.__class__.model_validate(merge_dct(self, other))  # pyright: ignore[reportUnknownArgumentType]
-
-        return obj
+        return self.__class__.model_validate(merge_dct(self, other))  # pyright: ignore[reportUnknownArgumentType]
 
 
 @dataclass_transform(field_specifiers=(pydantic.Field,))  # type: ignore[misc]

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, cast
 
 import pytest
@@ -106,7 +108,7 @@ def test_mergeable_extension_rejects_non_model_instances() -> None:
 
 def test_merge_dump_rejects_unsupported_values() -> None:
     with pytest.raises(PydanticMergeError):
-        merge_dump(cast(Any, object()))
+        merge_dump(cast("Any", object()))
 
 
 def test_mergeable_extension_validator_rejects_non_model_classes() -> None:
