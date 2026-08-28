@@ -204,7 +204,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-merge"
-version = "0.1.1"
+version = "0.1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
