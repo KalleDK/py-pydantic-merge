@@ -1,4 +1,12 @@
-from typing import Any, Self
+"""Add recursive merging to Pydantic models.
+
+Use :class:`BaseModel` directly, or combine :class:`MergeableExtension` with
+``pydantic.BaseModel`` when keeping Pydantic's base class import is preferred.
+Nested models are merged recursively; scalar, list, and dictionary values are
+replaced by override values.
+"""
+
+from typing import Any, Self, dataclass_transform
 
 import pydantic
 
@@ -10,6 +18,12 @@ class PydanticMergeError(Exception):
 
 
 def make_default_dict(model: type[pydantic.BaseModel] | pydantic.BaseModel) -> dict[str, tuple[bool, Any]]:
+    """Build the model values used as the base of a merge.
+
+    The boolean in each tuple indicates whether the value came from a model
+    field default. Explicitly set values are kept so subsequent merges can
+    preserve them.
+    """
 
     if isinstance(model, pydantic.BaseModel):
         org_default = make_default_dict(model.__class__)
@@ -27,13 +41,24 @@ def make_default_dict(model: type[pydantic.BaseModel] | pydantic.BaseModel) -> d
 
     dct: dict[str, tuple[bool, Any]] = {}
     for name, field in model.model_fields.items():
-        if isinstance(field.default, pydantic.BaseModel):
-            dct[name] = (True, field.default)
+        if field.default_factory is not None:
+            default = field.default_factory()  # pyright: ignore[reportCallIssue]
+        else:
+            default = field.default
+
+        if isinstance(default, pydantic.BaseModel):
+            dct[name] = (True, default)
             continue
     return dct
 
 
 def merge_dump(v: pydantic.BaseModel | dict[str, Any]) -> dict[str, Any]:
+    """Convert a model or dictionary to the representation used for merging.
+
+    Nested model instances are restored after serialization so they remain
+    available for recursive merging.
+    """
+
     if isinstance(v, pydantic.BaseModel):
         dct = v.model_dump(mode="json", exclude_unset=True)
         for name in dct:
@@ -52,6 +77,12 @@ def merge_dct(
     default: type[pydantic.BaseModel] | pydantic.BaseModel,
     override: dict[str, Any] | pydantic.BaseModel,
 ) -> dict[str, Any]:
+    """Merge an override into a model class or instance.
+
+    Only Pydantic model values are recursively merged. All other override
+    values, including lists and dictionaries, replace the existing value.
+    """
+
     _default = make_default_dict(default)
     override = merge_dump(override)
 
@@ -66,8 +97,7 @@ def merge_dct(
             continue
         o_value = override[name]
 
-        # If the field is not present in the base
-        # We will just override the base value with the override value
+        # New fields have no base value, so they are passed through unchanged.
         if name not in _default:
             base[name] = o_value
             continue
@@ -78,11 +108,7 @@ def merge_dct(
             base[name] = d_value.model_merge(o_value)
             continue
 
-        # We don't merge basic dict's for now as it feels more like it should be an override than a merge, but we can add this later if needed
-
-        # If the override value is not a dict or BaseModel
-        # If the base value is not a BaseModel
-        # We will just override the base value with the override value
+        # Lists, dictionaries, and scalar values are replacement values.
         if not isinstance(o_value, (dict, pydantic.BaseModel)) or not isinstance(d_value, (pydantic.BaseModel)):
             base[name] = o_value
             continue
@@ -96,9 +122,13 @@ def merge_dct(
 
 
 class MergeableExtension:
+    """Mixin that adds recursive merge validation to a Pydantic model."""
+
     @pydantic.model_validator(mode="before")
     @classmethod
     def _validate_base(cls, v: Any) -> Any:
+        """Merge input with nested model defaults before Pydantic validates it."""
+
         if not issubclass(cls, pydantic.BaseModel):
             raise PydanticMergeError(
                 f"MergeableExtension can only be used with pydantic.BaseModel subclasses, got {cls}"
@@ -106,14 +136,19 @@ class MergeableExtension:
 
         return merge_dct(cls, v)
 
-    def model_merge(self: Self, other: Self | dict[str, Any] | Any) -> Any:
+    def model_merge(self, other: Self | dict[str, Any] | Any) -> Any:
+        """Return a validated copy with values from ``other`` merged into it.
+
+        ``other`` may be a dictionary or another Pydantic model. Unsupported
+        values are returned unchanged for compatibility with the current API.
+        """
 
         if not isinstance(self, pydantic.BaseModel):
             raise PydanticMergeError(
                 f"model_merge can only be used with pydantic.BaseModel subclasses, got {self.__class__}"
             )
         if not isinstance(other, (dict, pydantic.BaseModel)):
-            print(f"other is not a dict or BaseModel, returning other: {other}")
+            # other is not a dict or BaseModel, returning other
             return other
 
         obj = self.__class__.model_validate(merge_dct(self, other))  # pyright: ignore[reportUnknownArgumentType]
@@ -121,8 +156,9 @@ class MergeableExtension:
         return obj
 
 
+@dataclass_transform(field_specifiers=(pydantic.Field,))  # type: ignore[misc]
 class BaseModel(pydantic.BaseModel, MergeableExtension):
-    pass
+    """Pydantic model base class with recursive merge support."""
 
 
 __all__ = ["BaseModel", "MergeableExtension", "PydanticMergeError"]

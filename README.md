@@ -70,6 +70,36 @@ merged = base.model_merge(patch)
 The result is a new instance. The original model is not modified, and the
 merged values are validated by Pydantic.
 
+### Using the mixin with Pydantic
+
+If you want to keep importing `BaseModel` from Pydantic, add
+`MergeableExtension` as a second base class:
+
+```python
+import pydantic
+
+from pydantic_merge import MergeableExtension
+
+
+class DatabaseConfig(pydantic.BaseModel):
+    host: str = "localhost"
+    port: int = 5432
+
+
+class AppConfig(pydantic.BaseModel, MergeableExtension):
+    database: DatabaseConfig = DatabaseConfig()
+
+
+config = AppConfig.model_validate({"database": {"port": 5433}})
+
+assert config.database.host == "localhost"
+assert config.database.port == 5433
+```
+
+Place `pydantic.BaseModel` before `MergeableExtension` in the class
+definition. This form provides the same recursive validation and
+`model_merge()` behavior as importing `BaseModel` from `pydantic_merge`.
+
 ## Merge behavior
 
 - Nested `pydantic_merge.BaseModel` fields are merged recursively.
@@ -80,7 +110,8 @@ merged values are validated by Pydantic.
 - A nested model can be overridden with a dictionary containing only the
   fields that should change.
 
-The top-level model must inherit from `pydantic_merge.BaseModel` to provide the
+The top-level model must either inherit from `pydantic_merge.BaseModel` or use
+`MergeableExtension` alongside `pydantic.BaseModel` to provide the
 `model_merge()` method. Nested Pydantic `BaseModel` fields are recognized and
 can be merged recursively; lists and dictionaries remain replacement values.
 
